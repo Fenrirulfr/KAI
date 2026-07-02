@@ -1,0 +1,8 @@
+{
+  "name": "Remix: AE Revenue Readiness Onboarding Flow",
+  "description": "A puzzle-themed, interactive onboarding portal for Mindtickle Account Executives to master the sales journey and achieve readiness piece by piece.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
