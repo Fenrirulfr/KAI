@@ -170,60 +170,6 @@ export default function AccountBuddy({ userName }: AccountBuddyProps) {
   ]);
   const [chatInput, setChatInput] = useState<string>("");
   const [isChatting, setIsChatting] = useState<boolean>(false);
-  const [showLangGraph, setShowLangGraph] = useState<boolean>(true);
-  const [isTestingGraph, setIsTestingGraph] = useState<boolean>(false);
-  const [graphLog, setGraphLog] = useState<string[]>([]);
-
-  const testLangGraphNode = async (targetPhase: "greeting" | "generating" | "chat") => {
-    setIsTestingGraph(true);
-    const nodeName = targetPhase === "greeting" ? "onboarding_node" : targetPhase === "generating" ? "generate_profile_node" : "chat_node";
-    const routeTarget = targetPhase === "greeting" ? "onboarding" : targetPhase === "generating" ? "generate_profile" : "chat";
-    setGraphLog([
-      `⚡ Initializing StateGraph(LearnerState)...`,
-      `📡 Invoking learner_agent.invoke({ phase: "${targetPhase}" })...`
-    ]);
-    try {
-      const res = await fetch("/api/openai/account-buddy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "invoke",
-          phase: targetPhase,
-          accountName: activeAccount.name,
-          chatMessage: `Testing LangGraph ${nodeName} for ${activeAccount.name}`
-        })
-      });
-      const data = await res.json();
-      if (data && data.transitions && data.transitions.length > 0) {
-        setGraphLog([
-          `✅ StateGraph compiled: checkpointer = MemorySaver()`,
-          `🚀 Route entry: START -> _route_entry -> ${routeTarget}`,
-          ...data.transitions.map((t: string) => `⚙️ ${t}`),
-          `🏁 State transitioned to END`,
-          `💾 Checkpoint persisted via MemorySaver`
-        ]);
-      } else {
-        setGraphLog([
-          `✅ StateGraph compiled: checkpointer = MemorySaver()`,
-          `🚀 Route entry: START -> _route_entry -> ${routeTarget}`,
-          `⚙️ Executed node: ${routeTarget}`,
-          `🏁 State transitioned to END`,
-          `💾 Checkpoint persisted via MemorySaver`
-        ]);
-      }
-    } catch (err: any) {
-      setGraphLog([
-        `✅ StateGraph compiled: checkpointer = MemorySaver()`,
-        `🚀 Route entry: START -> _route_entry -> ${routeTarget}`,
-        `⚙️ Executed node: ${routeTarget} -> END`,
-        `💾 Local execution verified via MemorySaver`
-      ]);
-    } finally {
-      setIsTestingGraph(false);
-    }
-  };
-
-  const testLangGraphInvoke = () => testLangGraphNode("chat");
 
   // Helper to resolve which curated module applies to this stage
   const getStageModule = (stageName: string) => {
@@ -257,6 +203,9 @@ export default function AccountBuddy({ userName }: AccountBuddyProps) {
 
   const handleCompleteModule = (modName: string) => {
     setCompletedModules(prev => ({ ...prev, [modName]: true }));
+    if (modName === "ICP & Persona Deep Dive") {
+      window.open("https://deeplinks.mindtickle.com/xEyiyEQur4b", "_blank", "noopener,noreferrer");
+    }
     alert(`🎉 Module "${modName}" marked as completed! Your dynamic readiness score has been updated.`);
   };
 
@@ -344,13 +293,6 @@ export default function AccountBuddy({ userName }: AccountBuddyProps) {
           text: data.reply || "I'm reviewing your account details. What specific asset would you like to prepare next?",
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
         }
-      ]);
-      setGraphLog([
-        "✅ StateGraph invoked: checkpointer = MemorySaver()",
-        "🚀 Route entry: START -> _route_entry -> chat",
-        "⚙️ Executed node: chat_node (GPT-4o Engine)",
-        "🏁 State transitioned to END",
-        "💾 Thread checkpoint persisted"
       ]);
     } catch (err: any) {
       console.error("Account Buddy chat error:", err);
@@ -594,12 +536,24 @@ export default function AccountBuddy({ userName }: AccountBuddyProps) {
                   </div>
 
                   {!completedModules[stageModule.name] && (
-                    <button 
-                      onClick={() => handleCompleteModule(stageModule.name)}
-                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
-                    >
-                      Complete module now →
-                    </button>
+                    stageModule.name === "ICP & Persona Deep Dive" ? (
+                      <a 
+                        href="https://deeplinks.mindtickle.com/xEyiyEQur4b"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => handleCompleteModule(stageModule.name)}
+                        className="inline-block px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer text-center"
+                      >
+                        Complete module now →
+                      </a>
+                    ) : (
+                      <button 
+                        onClick={() => handleCompleteModule(stageModule.name)}
+                        className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                      >
+                        Complete module now →
+                      </button>
+                    )
                   )}
                 </div>
               </div>
@@ -669,94 +623,6 @@ export default function AccountBuddy({ userName }: AccountBuddyProps) {
                   </form>
                 )}
               </div>
-            </div>
-
-            {/* LangGraph StateGraph Engine Integration Banner */}
-            <div className="space-y-2.5 pt-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black tracking-widest text-emerald-700 uppercase font-mono block flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>LangGraph StateGraph Engine · learner_agent = build_graph()</span>
-                </span>
-                <button
-                  onClick={() => setShowLangGraph(!showLangGraph)}
-                  className="text-[10px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200 font-mono transition-colors cursor-pointer"
-                >
-                  {showLangGraph ? "Hide Graph Inspector" : "Inspect StateGraph"}
-                </button>
-              </div>
-
-              {showLangGraph && (
-                <div className="bg-slate-900 text-slate-100 border border-slate-800 rounded-2xl p-4 md:p-5 font-mono text-xs space-y-3.5 shadow-md animate-fade-in">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-emerald-400 font-bold">StateGraph(LearnerState)</span>
-                      <span className="text-slate-500">|</span>
-                      <span className="text-amber-400">MemorySaver()</span>
-                      <span className="text-slate-500">|</span>
-                      <span className="text-sky-400">learner_agent</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <button
-                        onClick={() => testLangGraphNode("greeting")}
-                        disabled={isTestingGraph}
-                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white font-bold rounded-lg text-[10px] transition-all cursor-pointer flex items-center gap-1"
-                      >
-                        ⚡ Test onboarding_node
-                      </button>
-                      <button
-                        onClick={() => testLangGraphNode("generating")}
-                        disabled={isTestingGraph}
-                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 text-white font-bold rounded-lg text-[10px] transition-all cursor-pointer flex items-center gap-1"
-                      >
-                        ⚡ Test generate_profile_node
-                      </button>
-                      <button
-                        onClick={() => testLangGraphNode("chat")}
-                        disabled={isTestingGraph}
-                        className="px-2.5 py-1 bg-sky-600 hover:bg-sky-500 disabled:bg-slate-700 text-white font-bold rounded-lg text-[10px] transition-all cursor-pointer flex items-center gap-1"
-                      >
-                        ⚡ Test chat_node
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
-                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 space-y-1.5">
-                      <div className="text-slate-400 font-bold text-[10px] uppercase tracking-wider">📦 Compiled Nodes & Routes</div>
-                      <div className="text-emerald-300">add_node("onboarding", onboarding_node)</div>
-                      <div className="text-emerald-300">add_node("generate_profile", generate_profile_node)</div>
-                      <div className="text-emerald-300">add_node("chat", chat_node)</div>
-                      <div className="text-slate-400 pt-1">START → _route_entry → {"{onboarding, generate_profile, chat}"}</div>
-                      <div className="text-slate-400">onboarding → _route_after_onboarding → {"{generate_profile, END}"}</div>
-                    </div>
-
-                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 space-y-1.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-slate-400 font-bold text-[10px] uppercase tracking-wider">⚡ Live Execution Pipeline</div>
-                        {graphLog.length > 0 ? (
-                          <div className="space-y-1 mt-1 text-[10px] text-emerald-300">
-                            {graphLog.map((log, idx) => (
-                              <div key={idx} className="flex items-center gap-1.5">
-                                <span className="text-slate-500">{idx + 1}.</span>
-                                <span>{log}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-slate-500 italic mt-2 text-[10px]">
-                            Click "Test learner_agent.invoke()" or send a chat message to execute conditional routing.
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-[10px] text-slate-400 border-t border-slate-800 pt-1.5 flex justify-between items-center mt-2">
-                        <span>Checkpointer: active</span>
-                        <span className="text-emerald-400 font-bold">compile(checkpointer=_checkpointer)</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* KAI Deal Co-pilot — Account Buddy AI Chat (OpenAI API) */}

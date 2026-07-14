@@ -101,25 +101,37 @@ export default function App() {
         const pharmaSaved = localStorage.getItem("mt_pharma_scores");
         const saas = saasSaved ? JSON.parse(saasSaved) : [82, 88, 74, 68, 0, 0];
         const pharma = pharmaSaved ? JSON.parse(pharmaSaved) : [70, 58, 0, 0, 0, 0];
-        setPhase1Completed(saas.every((s: number) => s > 0) || pharma.every((s: number) => s > 0));
-        setTelemetryVersion(v => v + 1);
+        const newDone = saas.every((s: number) => s > 0) || pharma.every((s: number) => s > 0);
+        setPhase1Completed(prev => {
+          if (prev === newDone) return prev;
+          setTelemetryVersion(v => v + 1);
+          return newDone;
+        });
       } catch {}
     };
     const handlePhase2Update = () => {
       try {
         const saved = localStorage.getItem("mt_phase2_completed");
         const items = saved ? JSON.parse(saved) : [];
-        setPhase2CompletedCount(items.length);
-        setTelemetryVersion(v => v + 1);
+        const newCount = items.length;
+        setPhase2CompletedCount(prev => {
+          if (prev === newCount) return prev;
+          setTelemetryVersion(v => v + 1);
+          return newCount;
+        });
       } catch {}
     };
     const handleTasksUpdate = () => {
       try {
         const saved = localStorage.getItem("mt_onboarding_tasks");
         if (saved) {
-          setCompletedTasks(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          setCompletedTasks(prev => {
+            if (JSON.stringify(prev) === JSON.stringify(parsed)) return prev;
+            setTelemetryVersion(v => v + 1);
+            return parsed;
+          });
         }
-        setTelemetryVersion(v => v + 1);
       } catch {}
     };
     const handleTelemetrySync = () => {
@@ -255,10 +267,15 @@ export default function App() {
       try {
         const saved = localStorage.getItem("kai_agent_state");
         if (saved) {
-          setKaiState(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          setKaiState(prev => {
+            if (JSON.stringify(prev) === JSON.stringify(parsed)) return prev;
+            return parsed;
+          });
         }
         const savedReset = localStorage.getItem("kai_reset_count");
-        setResetCount(savedReset ? parseInt(savedReset, 10) : 0);
+        const newReset = savedReset ? parseInt(savedReset, 10) : 0;
+        setResetCount(prev => (prev === newReset ? prev : newReset));
       } catch (e) {}
     };
     const handleOpenAdmin = () => setShowAdminResetModal(true);
@@ -277,9 +294,13 @@ export default function App() {
 
   // Save progress to local storage
   useEffect(() => {
-    localStorage.setItem("mt_onboarding_tasks", JSON.stringify(completedTasks));
-    window.dispatchEvent(new Event("mt_tasks_updated"));
-    window.dispatchEvent(new Event("mt_telemetry_updated"));
+    const currentStr = localStorage.getItem("mt_onboarding_tasks");
+    const newStr = JSON.stringify(completedTasks);
+    if (currentStr !== newStr) {
+      localStorage.setItem("mt_onboarding_tasks", newStr);
+      window.dispatchEvent(new Event("mt_tasks_updated"));
+      window.dispatchEvent(new Event("mt_telemetry_updated"));
+    }
   }, [completedTasks]);
 
   const handleTaskComplete = (taskId: string) => {
@@ -557,7 +578,7 @@ export default function App() {
     if (isMenuOpen && (!kaiState.messages || kaiState.messages.length === 0)) {
       handleSendKaiMessage("Hello");
     }
-  }, [isMenuOpen, kaiState.messages, handleSendKaiMessage]);
+  }, [isMenuOpen, kaiState.messages?.length]);
 
   // Turn off page scroll of all pages except chat when Kai Chat window is open
   useEffect(() => {
@@ -627,7 +648,7 @@ export default function App() {
                   PHASE 00
                 </span>
                 <span className="text-xs sm:text-sm font-black tracking-tight mt-0.5">
-                  Welcome to Mindtickle
+                  Getting Started
                 </span>
               </div>
             </div>
@@ -856,7 +877,7 @@ export default function App() {
               
               {/* Futuristic Typography Title */}
               <h1 className="text-3xl md:text-4xl lg:text-6xl font-black tracking-tight leading-none uppercase font-sans">
-                Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF6B00] via-[#FF8C33] to-[#FFCC00] font-extrabold drop-shadow-[0_0_15px_rgba(255,107,0,0.3)]">
+                Welcome to <span className="text-[#FE5000] font-extrabold drop-shadow-[0_0_15px_rgba(254,80,0,0.3)]">
                   Mindtickle
                 </span>
               </h1>

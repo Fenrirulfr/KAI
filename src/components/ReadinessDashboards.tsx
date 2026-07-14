@@ -592,11 +592,18 @@ export default function ReadinessDashboards({ userName }: ReadinessDashboardsPro
       masterMap[curIdKey] = currentUserLearner;
 
       const mergedRoster = Object.values(masterMap);
-      setAllLearners(mergedRoster);
+      setAllLearners(prev => {
+        if (JSON.stringify(prev) === JSON.stringify(mergedRoster)) return prev;
+        return mergedRoster;
+      });
 
       try {
-        localStorage.setItem("mt_all_learners_telemetry", JSON.stringify(mergedRoster));
-        window.dispatchEvent(new Event("mt_telemetry_ready"));
+        const existingStr = localStorage.getItem("mt_all_learners_telemetry");
+        const newStr = JSON.stringify(mergedRoster);
+        if (existingStr !== newStr) {
+          localStorage.setItem("mt_all_learners_telemetry", newStr);
+          window.dispatchEvent(new Event("mt_telemetry_ready"));
+        }
       } catch (e) {}
 
       // Compute dynamic proficiencies for Seller View from active user's stage scores
@@ -628,7 +635,10 @@ export default function ReadinessDashboards({ userName }: ReadinessDashboardsPro
         return { stage: stg, lvl, pct, color, bgLight, textCol };
       });
 
-      setDynamicProficiencies(profs);
+      setDynamicProficiencies(prev => {
+        if (JSON.stringify(prev) === JSON.stringify(profs)) return prev;
+        return profs;
+      });
     } catch (e) {
       console.error("Error loading real-time learner dashboard data:", e);
     }

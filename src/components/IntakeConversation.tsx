@@ -83,6 +83,11 @@ export default function IntakeConversation({ onProfileCaptured, onOpenAdminModal
   });
   
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const onProfileCapturedRef = useRef(onProfileCaptured);
+
+  useEffect(() => {
+    onProfileCapturedRef.current = onProfileCaptured;
+  }, [onProfileCaptured]);
 
   // Auto-sync State changes across tabs and components
   useEffect(() => {
@@ -91,22 +96,25 @@ export default function IntakeConversation({ onProfileCaptured, onOpenAdminModal
         const saved = localStorage.getItem("kai_agent_state");
         if (saved) {
           const parsed = JSON.parse(saved);
-          setLearnerState(parsed);
+          setLearnerState(prev => {
+            if (JSON.stringify(prev) === JSON.stringify(parsed)) return prev;
+            return parsed;
+          });
           if (parsed.messages && parsed.messages.length === 0) {
             setInput("");
             setError(null);
           }
           
           // Notify parent on load if profile is complete or reset
-          if (onProfileCaptured) {
+          if (onProfileCapturedRef.current) {
             if (parsed.learner_profile) {
-              onProfileCaptured({
+              onProfileCapturedRef.current({
                 persona: parsed.learner_profile.persona,
                 focus: parsed.learner_profile.communication_preference || parsed.learner_profile.communication_style || "",
                 lastRole: parsed.answers.last_role || parsed.answers.experience_level || "AE"
               });
             } else {
-              onProfileCaptured({
+              onProfileCapturedRef.current({
                 persona: "Unassigned",
                 focus: "",
                 lastRole: ""
@@ -115,7 +123,8 @@ export default function IntakeConversation({ onProfileCaptured, onOpenAdminModal
           }
         }
         const savedReset = localStorage.getItem("kai_reset_count");
-        setResetCount(savedReset ? parseInt(savedReset, 10) : 0);
+        const newReset = savedReset ? parseInt(savedReset, 10) : 0;
+        setResetCount(prev => (prev === newReset ? prev : newReset));
       } catch (e) {
         console.error("Sync state error:", e);
       }
@@ -126,7 +135,7 @@ export default function IntakeConversation({ onProfileCaptured, onOpenAdminModal
       window.removeEventListener("kai_state_updated", handleSync);
       window.removeEventListener("kai_reset_count_updated", handleSync);
     };
-  }, [onProfileCaptured]);
+  }, []);
 
   // Initial greeting trigger
   useEffect(() => {
@@ -211,9 +220,9 @@ export default function IntakeConversation({ onProfileCaptured, onOpenAdminModal
         setLearnerState(nextState);
         localStorage.setItem("kai_agent_state", JSON.stringify(nextState));
         
-        if (onProfileCaptured && nextState.learner_profile) {
+        if (onProfileCapturedRef.current && nextState.learner_profile) {
           setTimeout(() => {
-            onProfileCaptured({
+            onProfileCapturedRef.current?.({
               persona: nextState.learner_profile!.persona,
               focus: nextState.learner_profile!.communication_preference || nextState.learner_profile!.communication_style || "",
               lastRole: nextState.answers.last_role || nextState.answers.experience_level || "AE"

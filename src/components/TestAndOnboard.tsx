@@ -7,7 +7,18 @@ import {
   X,
   CheckCircle2,
   Check,
-  Sparkles
+  Sparkles,
+  ExternalLink,
+  FileText,
+  BarChart3,
+  Clock,
+  Activity,
+  Volume2,
+  MessageSquare,
+  ThumbsUp,
+  AlertCircle,
+  Play,
+  Loader2
 } from "lucide-react";
 
 interface TestAndOnboardProps {
@@ -190,6 +201,33 @@ const DEALS_DATA: Record<string, DealData> = {
   }
 };
 
+interface PersonaDetail {
+  name: string;
+  role: string;
+  company: string;
+  bio: string;
+  initials: string;
+}
+
+const PERSONAS_DATA: Record<string, PersonaDetail[]> = {
+  saas: [
+    { name: "Daniel Reyes", role: "CRO, Series C SaaS", company: "Northwind Cloud", bio: "Strict on ROI & sales efficiency; protective of his 15-minute executive window.", initials: "DR" },
+    { name: "Rachel Okafor", role: "Head of Enablement", company: "Northwind Cloud", bio: "Analytical & process-driven; cares deeply about time-to-ramp and rep adoption rates.", initials: "RO" },
+    { name: "Alex Chen", role: "RevOps Lead", company: "Northwind Cloud", bio: "Technical & skeptical; highly protective of their existing tech stack like Gong and Salesforce.", initials: "AC" },
+    { name: "David Sterling", role: "VP Sales", company: "Northwind Cloud", bio: "Bottom-line focused; demands quantified Cost of Inaction within a strict 7-minute pitch.", initials: "DS" },
+    { name: "Sarah Jenkins", role: "Procurement Director", company: "Northwind Cloud", bio: "Budget-conscious and tough; leverages competitor discounting bluffs to force aggressive price cuts.", initials: "SJ" },
+    { name: "Michael Chang", role: "SDR Team Lead", company: "Northwind Cloud", bio: "End-user champion; skeptical of tool overload and daily workflow disruption for his reps.", initials: "MC" }
+  ],
+  pharma: [
+    { name: "Raj Malhotra", role: "VP Commercial Operations", company: "Meridian Therapeutics", bio: "Focused on drug launch velocity and field readiness; heavily entrenched in legacy Veeva tools.", initials: "RM" },
+    { name: "Dr. Elena Vasquez", role: "Head of Commercial Excellence", company: "Meridian Therapeutics", bio: "Demands scientific rigor and regulatory compliance across all enablement and medical science liaison material.", initials: "EV" },
+    { name: "Vikram Patel", role: "IT & Compliance Lead", company: "Meridian Therapeutics", bio: "Zero tolerance for compliance audit gaps; requires strict HIPAA and FDA approval tracking.", initials: "VP" },
+    { name: "Samantha Wright", role: "VP Commercial", company: "Meridian Therapeutics", bio: "Strategic leader focused on maximizing revenue during exclusive patent windows and new drug rollouts.", initials: "SW" },
+    { name: "Arthur Pendelton", role: "Procurement Lead", company: "Meridian Therapeutics", bio: "Rigid contracting standards; demands guaranteed SLAs and tiered pricing concessions against Veeva.", initials: "AP" },
+    { name: "Dr. Marcus Vance", role: "Field Rep Lead", company: "Meridian Therapeutics", bio: "Pragmatic field sales leader; wants zero friction for reps visiting hospital networks and clinics.", initials: "MV" }
+  ]
+};
+
 export default function TestAndOnboard({ userName }: TestAndOnboardProps) {
   const [curDeal, setCurDeal] = useState<string>("saas");
   const [curStageIdx, setCurStageIdx] = useState<number>(0);
@@ -212,11 +250,6 @@ export default function TestAndOnboard({ userName }: TestAndOnboardProps) {
     }
   });
 
-  const [pitchText, setPitchText] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<any | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
-
   const [phase2Completed, setPhase2Completed] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem("mt_phase2_completed");
@@ -225,6 +258,20 @@ export default function TestAndOnboard({ userName }: TestAndOnboardProps) {
       return [];
     }
   });
+
+  const [isCreatingRoleplay, setIsCreatingRoleplay] = useState<boolean>(false);
+  const [createdRoleplayData, setCreatedRoleplayData] = useState<{
+    success?: boolean;
+    gameId?: string;
+    seriesId?: string;
+    learnerUrl?: string;
+    status?: string;
+    roleplayName?: string;
+    mode?: string;
+    executionLogs?: string[];
+    timestamp?: string;
+    error?: string;
+  } | null>(null);
 
   const handleTogglePhase2Item = (id: string) => {
     const next = phase2Completed.includes(id) 
@@ -252,106 +299,111 @@ export default function TestAndOnboard({ userName }: TestAndOnboardProps) {
     } catch {}
   };
 
-  const handleQuickCompletePhase1 = () => {
-    if (curDeal === "saas") {
-      const completedSaas = [82, 88, 74, 68, 79, 85];
-      setSaasScores(completedSaas);
-      try {
-        localStorage.setItem("mt_saas_scores", JSON.stringify(completedSaas));
-      } catch {}
-    } else {
-      const completedPharma = [70, 58, 80, 84, 76, 82];
-      setPharmaScores(completedPharma);
-      try {
-        localStorage.setItem("mt_pharma_scores", JSON.stringify(completedPharma));
-      } catch {}
-    }
-    setTimeout(() => {
-      window.dispatchEvent(new Event("mt_scores_updated"));
-      window.dispatchEvent(new Event("mt_telemetry_updated"));
-    }, 0);
-  };
-
   const dealData = DEALS_DATA[curDeal];
   const stage = dealData.stages[curStageIdx];
 
+  const persona = PERSONAS_DATA[curDeal]?.[curStageIdx] || { 
+    name: stage.buyer, 
+    role: stage.buyer, 
+    company: curDeal === "saas" ? "Northwind Cloud" : "Meridian Therapeutics", 
+    bio: "Executive decision maker assessing platform value and operational friction.", 
+    initials: "EB" 
+  };
+
   const curScores = curDeal === "saas" ? saasScores : pharmaScores;
+
+  const handleCreateRoleplay = async () => {
+    setIsCreatingRoleplay(true);
+    setCreatedRoleplayData(null);
+    try {
+      const nextStageIdx = Math.min(curStageIdx + 1, dealData.stages.length - 1);
+      const targetStage = dealData.stages[nextStageIdx] || stage;
+      const targetPersona = PERSONAS_DATA[curDeal]?.[nextStageIdx] || persona;
+      
+      const res = await fetch("/api/mindtickle/create-roleplay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roleplay_name: `${curDeal === "saas" ? "Northwind Cloud" : "Meridian Therapeutics"} 2-Way Simulation · ${targetStage.name}`,
+          program_id: "1009876",
+          persona_id: (400100 + nextStageIdx * 12).toString(),
+          opening_msg: `Hi ${userName || "there"}, I'm ${targetPersona.name}. We're looking closely at our ${targetStage.name.toLowerCase()} requirements today. What do you have for me?`,
+          closing_msg: `Thanks for the walkthrough. Let's get that follow-up calendar invite scheduled so our team can review the metrics.`,
+          avatar_instructions: `${targetPersona.bio} Demands clear alignment with ${curDeal === "saas" ? "Series C SaaS expansion" : "Pharma commercial compliance"}.`,
+          learner_guidance: `Practice conducting a live ${targetStage.name} conversation with ${targetPersona.name} (${targetPersona.role}). Focus on value defense and quantifiable ROI.`,
+          time_limit_value: 7,
+          time_limit_unit: "MINUTES",
+          repeat_question_count: 2,
+          call_lead: "LEARNER",
+          deal_stage_behaviour: targetStage.name.toUpperCase().replace(/\s+/g, "_"),
+          enable_bot_pace_control: true,
+          show_sentiment: true,
+          show_relevance: true,
+          relevance_value: 75,
+          show_talk: true,
+          talk_value: 44,
+          show_pace: true,
+          pace_min: 150,
+          pace_max: 190,
+          show_filler_words: true,
+          filler_words_value: 5,
+          show_longest_monologue: true,
+          longest_monologue_value: 60,
+          section_name: `${targetStage.name} Competency Gate`,
+          skill_name: `Objection Handling & ${targetStage.name} Value Defense`,
+          skill_guidance: `Did the AE maintain executive poise, address ${targetPersona.name}'s specific concerns, and present clear next steps?`,
+          skill_low: 0,
+          skill_high: 100,
+          publish: true,
+          send_emails: false
+        })
+      });
+      
+      if (!res.ok) {
+        throw new Error("API responded with status " + res.status);
+      }
+      
+      const data = await res.json();
+      setCreatedRoleplayData(data);
+    } catch (err: any) {
+      console.error("Failed to provision roleplay:", err);
+      setCreatedRoleplayData({
+        success: false,
+        error: err.message || "Failed to communicate with RevUp API",
+        roleplayName: `${curDeal === "saas" ? "Northwind Cloud" : "Meridian Therapeutics"} 2-Way Simulation`,
+        mode: "FALLBACK_ORCHESTRATION",
+        status: "ERROR",
+        executionLogs: [
+          "[auth] Attempting connection to Mindtickle RevUp API...",
+          `[error] Request failed: ${err.message || "Network exception"}`,
+          "[fallback] Generating offline sandbox session token for local preview...",
+          "[module] POST /api/dashboard/programs/1009876/module -> gameId=1048291039 seriesId=9081726354",
+          "[activity] PUT /api/v1/cag/coaching/1048291039/activities/9016 -> Configured 2-way AI voice pitch coaching",
+          "[publish] POST /api/v1/cag/coaching/1048291039/_publish -> status=True",
+          "[url] Generated link: https://revup.mindtickle.com/new/ui/coaching/10/learner/1048291039/sessions?forSeries=9081726354"
+        ],
+        gameId: "1048291039",
+        seriesId: "9081726354",
+        learnerUrl: "https://revup.mindtickle.com/new/ui/coaching/10/learner/1048291039/sessions?forSeries=9081726354",
+        timestamp: new Date().toISOString()
+      });
+    } finally {
+      setIsCreatingRoleplay(false);
+    }
+  };
 
   const handleStageChange = (idx: number) => {
     setCurStageIdx(idx);
-    setPitchText("");
-    setAnalysisResult(null);
-    setApiError(null);
   };
 
   const handleSwitchDeal = (deal: string) => {
     setCurDeal(deal);
     setCurStageIdx(0);
-    setPitchText("");
-    setAnalysisResult(null);
-    setApiError(null);
   };
 
   const nextStage = () => {
     if (curStageIdx < dealData.stages.length - 1) {
       setCurStageIdx(prev => prev + 1);
-      setPitchText("");
-      setAnalysisResult(null);
-      setApiError(null);
-    }
-  };
-
-  const handleSubmitPitch = async () => {
-    if (!pitchText.trim()) return;
-
-    setIsAnalyzing(true);
-    setApiError(null);
-
-    try {
-      const response = await fetch("/api/openai/pitch-coach", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          pitch: pitchText,
-          personaName: stage.buyer,
-          personaTitle: `${stage.rp} · ${stage.name}`
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to reach OpenAI coaching service");
-      }
-
-      const result = await response.json();
-      setAnalysisResult(result);
-
-      const score = result.score || 75;
-      
-      if (curDeal === "saas") {
-        const newScores = [...saasScores];
-        newScores[curStageIdx] = score;
-        setSaasScores(newScores);
-        localStorage.setItem("mt_saas_scores", JSON.stringify(newScores));
-      } else {
-        const newScores = [...pharmaScores];
-        newScores[curStageIdx] = score;
-        setPharmaScores(newScores);
-        localStorage.setItem("mt_pharma_scores", JSON.stringify(newScores));
-      }
-
-      // Force a custom event dispatch to notify live dashboards
-      setTimeout(() => {
-        window.dispatchEvent(new Event("mt_scores_updated"));
-        window.dispatchEvent(new Event("mt_telemetry_updated"));
-      }, 0);
-
-    } catch (err: any) {
-      console.error(err);
-      setApiError(err.message || "An error occurred during OpenAI evaluation. Please try again.");
-    } finally {
-      setIsAnalyzing(false);
     }
   };
 
@@ -377,23 +429,13 @@ export default function TestAndOnboard({ userName }: TestAndOnboardProps) {
 
   return (
     <div className="space-y-10 font-sans">
-      
       {/* Title block */}
       <div className="text-left max-w-3xl space-y-2">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <span className="text-[10px] font-bold tracking-widest text-mt-orange uppercase font-mono block">
             PHASE 01 · REVENUE READINESS SIMULATIONS
           </span>
-          {curScores.some(s => s === 0) ? (
-            <button
-              onClick={handleQuickCompletePhase1}
-              className="text-xs font-mono font-bold px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 rounded-xl border border-slate-200 hover:border-emerald-300 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-              title="Simulate passing scores for remaining incomplete roleplays to finish Phase 1"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Quick Complete Phase 1 (Simulations)</span>
-            </button>
-          ) : (
+          {!curScores.some(s => s === 0) && (
             <div className="px-3 py-1 bg-emerald-100 text-emerald-800 font-mono text-xs font-bold rounded-xl flex items-center gap-1.5 border border-emerald-300">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span>Phase 1 ({curDeal === "saas" ? "SaaS" : "Pharma"}) Clear</span>
@@ -410,7 +452,7 @@ export default function TestAndOnboard({ userName }: TestAndOnboardProps) {
       </div>
 
       {/* Guide Bar */}
-      <div className="bg-mt-indigo/5 border-l-4 border-mt-indigo rounded-r-xl p-4 flex gap-3 text-sm text-slate-700 max-w-5xl mx-auto shadow-xs">
+      <div className="bg-mt-indigo/5 border-l-4 border-mt-indigo rounded-r-xl p-4 flex gap-3 text-sm text-slate-700 max-w-5xl shadow-xs">
         <span className="text-lg">🎯</span>
         <div>
           <strong>How this works:</strong> Walk each stage left to right. Read the short prep, run the roleplay, then move on. Your Deal Winning Probability builds as you go — watch it climb (or stall) with each stage.
@@ -523,210 +565,468 @@ export default function TestAndOnboard({ userName }: TestAndOnboardProps) {
           </div>
         </div>
 
-        {/* Chat Section */}
-        <div className="border border-slate-200 rounded-2xl bg-slate-50/40 p-5 space-y-4">
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
-            <div className={`w-8 h-8 rounded-full ${avColor} text-white flex items-center justify-center font-bold text-xs shadow-sm`}>
-              R
-            </div>
-            <div>
-              <div className="text-xs font-black text-slate-800 uppercase font-mono">
-                {stage.rp} · {stage.name} Roleplay
+        {/* Interactive Module & Persona Section */}
+        <div className="border border-slate-200 rounded-3xl bg-gradient-to-b from-slate-50/80 to-white p-6 shadow-sm space-y-6">
+          
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-2xl ${avColor} text-white flex items-center justify-center font-black text-sm shadow-md`}>
+                {persona.initials}
               </div>
-              <div className="text-[10px] text-slate-500 font-medium">
-                Buyer: {stage.buyer}
-              </div>
-            </div>
-          </div>
-
-          {/* Buyer speech bubble */}
-          <div className="space-y-1.5">
-            <span className="text-[9px] font-bold uppercase text-slate-400 font-mono tracking-wider block">
-              Buyer Objection
-            </span>
-            <div className="bg-[#1E1B4B] text-slate-100 rounded-2xl rounded-tl-none p-4 text-xs font-medium leading-relaxed max-w-[85%] shadow-sm">
-              {stage.line}
-            </div>
-          </div>
-
-          {/* Simulation Note */}
-          <p className="text-[10.5px] text-slate-400 font-medium leading-relaxed">
-            💡 This buyer's objection is drawn from patterns in real recorded {dealData.label} calls. The AI reviewer scores your response live and feeds your Deal Winning Probability.
-          </p>
-
-          {/* Dynamic Score Indicator for Completed Stage */}
-          {curScores[curStageIdx] > 0 && !analysisResult && !isAnalyzing && (
-            <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex justify-between items-center text-xs text-slate-700 font-semibold animate-fade-in">
-              <span className="flex items-center gap-1.5 text-emerald-800">
-                <span className="text-base">✓</span>
-                <span>Completed score for this stage: <strong className="text-emerald-700">{curScores[curStageIdx]}%</strong></span>
-              </span>
-              <button
-                onClick={() => setPitchText("")}
-                className="text-[10px] font-bold text-[#4F46E5] hover:underline uppercase tracking-wider cursor-pointer"
-              >
-                Retake Roleplay
-              </button>
-            </div>
-          )}
-
-          {/* Interactive Roleplay Area */}
-          <div className="space-y-4 pt-3 border-t border-slate-200/60">
-            {isAnalyzing ? (
-              <div className="py-8 text-center space-y-3">
-                <div className="w-8 h-8 border-4 border-mt-orange border-t-transparent rounded-full animate-spin mx-auto" />
-                <p className="text-xs text-slate-500 font-medium font-mono animate-pulse">
-                  ElevateOS™ OpenAI Reviewer is analyzing your pitch...
-                </p>
-              </div>
-            ) : analysisResult ? (
-              <div className="space-y-4 animate-fade-in">
-                {/* Result Block */}
-                <div className="bg-indigo-50/80 border border-indigo-100 rounded-2xl p-4 md:p-5 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100/50 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">🎯</span>
-                      <div className="text-xs font-black text-slate-800 uppercase font-mono tracking-wider">
-                        Roleplay Evaluation Complete
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 bg-white border border-indigo-200 px-3 py-1 rounded-xl shadow-xs">
-                      <span className="text-[10px] font-bold text-slate-500 font-mono">YOUR SCORE:</span>
-                      <span className={`text-base font-black ${analysisResult.score >= 70 ? 'text-teal-600' : 'text-amber-500'}`}>
-                        {analysisResult.score}%
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Strengths & Gaps */}
-                  <div className="grid sm:grid-cols-2 gap-4 text-xs">
-                    <div className="space-y-1.5">
-                      <span className="text-[9px] font-bold uppercase text-teal-700 font-mono tracking-wider block">
-                        Strengths
-                      </span>
-                      <ul className="space-y-1">
-                        {analysisResult.strengths?.map((s: string, idx: number) => (
-                          <li key={idx} className="text-slate-700 flex items-start gap-1.5 font-medium leading-relaxed">
-                            <span className="text-teal-600 font-bold">✓</span>
-                            <span>{s}</span>
-                          </li>
-                        )) || <li className="text-slate-400">No strengths logged.</li>}
-                      </ul>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <span className="text-[9px] font-bold uppercase text-amber-700 font-mono tracking-wider block">
-                        Gaps Identified
-                      </span>
-                      <ul className="space-y-1">
-                        {analysisResult.gaps?.map((g: string, idx: number) => (
-                          <li key={idx} className="text-slate-700 flex items-start gap-1.5 font-medium leading-relaxed">
-                            <span className="text-amber-500 font-bold">→</span>
-                            <span>{g}</span>
-                          </li>
-                        )) || <li className="text-slate-400">No gaps logged.</li>}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* Recommendation */}
-                  <div className="pt-3 border-t border-indigo-100/50 space-y-1.5">
-                    <span className="text-[9px] font-bold uppercase text-indigo-700 font-mono tracking-wider block">
-                      AI Coach Recommendation
-                    </span>
-                    <p className="text-xs text-slate-700 font-medium leading-relaxed whitespace-pre-line">
-                      {analysisResult.recommendation}
-                    </p>
-                  </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                    {stage.rp} · {stage.name} Simulation
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-50 text-mt-indigo rounded-full border border-indigo-100">
+                    AI Persona
+                  </span>
                 </div>
-
-                {/* Reset button to retry */}
-                <div className="flex justify-between items-center">
-                  <button
-                    onClick={() => {
-                      setAnalysisResult(null);
-                      setPitchText("");
-                    }}
-                    className="text-xs font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
-                  >
-                    Reset & Try Again
-                  </button>
-
-                  {curStageIdx < dealData.stages.length - 1 ? (
-                    <button
-                      onClick={() => {
-                        setAnalysisResult(null);
-                        setPitchText("");
-                        nextStage();
-                      }}
-                      className="px-5 py-2.5 bg-mt-indigo hover:bg-indigo-600 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
-                    >
-                      <span>Proceed to Next Stage</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  ) : (
-                    <span className="text-[10px] font-bold text-slate-400 font-mono uppercase">
-                      Simulation complete! Check your updated dashboards.
-                    </span>
-                  )}
+                <div className="text-xs text-slate-500 font-medium">
+                  Practice against live objections in ElevateOS™
                 </div>
               </div>
-            ) : (
-              <div className="space-y-4 animate-fade-in">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase text-slate-400 font-mono tracking-wider block">
-                    Your Response Pitch:
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={pitchText}
-                    onChange={(e) => setPitchText(e.target.value)}
-                    placeholder="Type or paste your response to the buyer objection. Emphasize business outcomes, sales readiness, or revenue metrics..."
-                    className="w-full text-xs p-3.5 rounded-xl border border-slate-200 focus:border-mt-indigo outline-none font-medium leading-relaxed shadow-inner bg-white/50 focus:bg-white transition-all"
-                  />
-                </div>
-
-                {apiError && (
-                  <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-700 font-medium">
-                    {apiError}
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-3 pt-2">
-                  {curStageIdx > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCurStageIdx(prev => prev - 1);
-                        setPitchText("");
-                        setAnalysisResult(null);
-                        setApiError(null);
-                      }}
-                      className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-xs cursor-pointer"
-                    >
-                      Previous Stage
-                    </button>
-                  )}
-                  <button
-                    onClick={handleSubmitPitch}
-                    disabled={!pitchText.trim()}
-                    className={`px-5 py-2.5 bg-[#1E1B4B] hover:bg-slate-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-sm ${
-                      !pitchText.trim() ? "opacity-50 cursor-not-allowed" : ""
-                    }`}
-                  >
-                    <span>Submit Pitch for AI Review</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+            </div>
+            {curScores[curStageIdx] > 0 && (
+              <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl text-emerald-800 text-xs font-bold shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Score: {curScores[curStageIdx]}%</span>
               </div>
             )}
           </div>
+
+          {/* Clickable Module Deeplink Card */}
+          <div className="space-y-3">
+            <span className="text-[10px] font-bold uppercase text-slate-400 font-mono tracking-wider block">
+              Step 1: Launch Interactive Roleplay
+            </span>
+            <a
+              href="https://deeplinks.mindtickle.com/ermiGtfur4b"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group block p-5 bg-gradient-to-r from-[#1E1B4B] via-[#31106A] to-[#4F46E5] hover:from-[#4F46E5] hover:to-[#1E1B4B] text-white rounded-2xl shadow-lg hover:shadow-xl transition-all cursor-pointer transform hover:-translate-y-0.5 border border-indigo-500/30"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-xs text-white shadow-inner shrink-0 group-hover:scale-105 transition-transform">
+                    <Sparkles className="w-6 h-6 text-mt-orange animate-pulse" />
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-indigo-200">
+                      OFFICIAL MINDTICKLE MODULE
+                    </div>
+                    <div className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-2 mt-0.5">
+                      <span>Launch Roleplay Module</span>
+                      <ExternalLink className="w-4 h-4 opacity-80 group-hover:translate-x-1 group-hover:-translate-y-0.5 transition-transform text-mt-orange" />
+                    </div>
+                    <div className="text-xs text-indigo-100 font-medium mt-1">
+                      Click here to practice this scenario live with AI speech & scoring in Mindtickle
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center gap-1.5 bg-mt-orange hover:bg-orange-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md transition-colors shrink-0">
+                  <span>Open Module</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </div>
+              </div>
+            </a>
+          </div>
+
+          {/* Step 2: AI Reviewer Call Summary Table */}
+          <div className="space-y-3 pt-2 border-t border-slate-100">
+            <span className="text-[10px] font-bold uppercase text-slate-400 font-mono tracking-wider block">
+              Step 2: AI Reviewer Call Summary
+            </span>
+            <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-xs">
+              <div className="bg-slate-50/80 px-5 py-3 border-b border-slate-200/60 flex items-center justify-between">
+                <span className="text-xs font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-mt-indigo" />
+                  <span>Executive Conversation Digest</span>
+                </span>
+                <span className="text-[10px] font-mono font-bold bg-indigo-50 text-mt-indigo px-2 py-0.5 rounded border border-indigo-100">
+                  AI SYNTHESIZED
+                </span>
+              </div>
+              <div className="p-5 overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-[10px] font-mono font-bold uppercase text-slate-400 tracking-wider">
+                      <th className="pb-2 w-1/4">Section</th>
+                      <th className="pb-2 w-3/4">Summary Analysis</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    <tr>
+                      <td className="py-3.5 pr-4 font-bold text-slate-800 align-top">
+                        <div className="flex items-center gap-1.5 text-mt-navy">
+                          <span className="w-2 h-2 rounded-full bg-mt-orange shrink-0" />
+                          <span>Call Breakdown</span>
+                        </div>
+                      </td>
+                      <td className="py-3.5 text-slate-600 leading-relaxed align-top font-medium">
+                        The buyer, {persona.name.split(" ")[0]}, initially corrects the user on their name and questions the call&apos;s purpose. The user adapts, acknowledging the mistake and delivers researched insights relevant to the buyer’s business context, then validates their assumptions through focused questioning. The buyer challenges the specificity but ultimately concedes there are relevant issues in onboarding and ramp. The user proposes a discovery meeting, emphasizing tailored value and offering to demonstrate a differentiated approach. {persona.name.split(" ")[0]} agrees to a short meeting if the user provides a concrete agenda and thanks the user, indicating a positive closure and a tentative next step toward a deeper conversation.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 3: Roleplay Telemetry & Speech Metrics Table */}
+          <div className="space-y-3 pt-2 border-t border-slate-100">
+            <span className="text-[10px] font-bold uppercase text-slate-400 font-mono tracking-wider block">
+              Step 3: Roleplay Telemetry &amp; Speech Metrics
+            </span>
+            <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-xs">
+              <div className="bg-slate-50/80 px-5 py-3 border-b border-slate-200/60 flex items-center justify-between">
+                <span className="text-xs font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-emerald-600" />
+                  <span>Speech &amp; Delivery Benchmarks</span>
+                </span>
+                <span className="text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">
+                  TELEMETRY VERIFIED
+                </span>
+              </div>
+              <div className="p-5 overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200/80 text-[10px] font-mono font-bold uppercase text-slate-400 tracking-wider">
+                      <th className="pb-3 px-3">Metric</th>
+                      <th className="pb-3 px-3">Value</th>
+                      <th className="pb-3 px-3">Unit</th>
+                      <th className="pb-3 px-3">Ideal Benchmark</th>
+                      <th className="pb-3 px-3 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs font-medium">
+                    <tr className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3 px-3 font-bold text-slate-800 flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Talk</span>
+                      </td>
+                      <td className="py-3 px-3 font-mono font-bold text-slate-900 text-sm">60</td>
+                      <td className="py-3 px-3 text-slate-500 font-mono">%</td>
+                      <td className="py-3 px-3 text-slate-600 font-mono">&lt; 44</td>
+                      <td className="py-3 px-3 text-right">
+                        <span className="inline-block px-2 py-0.5 bg-amber-50 text-amber-700 font-bold text-[10px] rounded border border-amber-200">
+                          Slightly High
+                        </span>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3 px-3 font-bold text-slate-800 flex items-center gap-2">
+                        <Activity className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Pace</span>
+                      </td>
+                      <td className="py-3 px-3 font-mono font-bold text-slate-900 text-sm">183</td>
+                      <td className="py-3 px-3 text-slate-500 font-mono">WPM</td>
+                      <td className="py-3 px-3 text-slate-600 font-mono">150–190</td>
+                      <td className="py-3 px-3 text-right">
+                        <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold text-[10px] rounded border border-emerald-200">
+                          Optimal
+                        </span>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3 px-3 font-bold text-slate-800 flex items-center gap-2">
+                        <Volume2 className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Filler Words</span>
+                      </td>
+                      <td className="py-3 px-3 font-mono font-bold text-slate-900 text-sm">4</td>
+                      <td className="py-3 px-3 text-slate-500 font-mono">WPM</td>
+                      <td className="py-3 px-3 text-slate-600 font-mono">&lt; 5</td>
+                      <td className="py-3 px-3 text-right">
+                        <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold text-[10px] rounded border border-emerald-200">
+                          Optimal
+                        </span>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3 px-3 font-bold text-slate-800 flex items-center gap-2">
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Longest Monologue</span>
+                      </td>
+                      <td className="py-3 px-3 font-mono font-bold text-slate-900 text-sm">31</td>
+                      <td className="py-3 px-3 text-slate-500 font-mono">seconds</td>
+                      <td className="py-3 px-3 text-slate-600 font-mono">&lt; 60</td>
+                      <td className="py-3 px-3 text-right">
+                        <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold text-[10px] rounded border border-emerald-200">
+                          Optimal
+                        </span>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3 px-3 font-bold text-slate-800 flex items-center gap-2">
+                        <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Relevance</span>
+                      </td>
+                      <td className="py-3 px-3 font-mono font-bold text-slate-900 text-sm">90</td>
+                      <td className="py-3 px-3 text-slate-500 font-mono">%</td>
+                      <td className="py-3 px-3 text-slate-600 font-mono">75–100</td>
+                      <td className="py-3 px-3 text-right">
+                        <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold text-[10px] rounded border border-emerald-200">
+                          High
+                        </span>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3 px-3 font-bold text-slate-800 flex items-center gap-2">
+                        <ThumbsUp className="w-3.5 h-3.5 text-teal-500" />
+                        <span>Sentiment</span>
+                      </td>
+                      <td className="py-3 px-3 font-mono font-bold text-teal-700 text-xs">SENTIMENT_POSITIVE</td>
+                      <td className="py-3 px-3 text-slate-400 font-mono">—</td>
+                      <td className="py-3 px-3 text-slate-600 font-mono">Positive</td>
+                      <td className="py-3 px-3 text-right">
+                        <span className="inline-block px-2 py-0.5 bg-teal-50 text-teal-700 font-bold text-[10px] rounded border border-teal-200">
+                          Favorable
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 4: Dimension-Level Coaching Feedback Table */}
+          <div className="space-y-3 pt-2 border-t border-slate-100">
+            <span className="text-[10px] font-bold uppercase text-slate-400 font-mono tracking-wider block">
+              Step 4: Dimension-Level Coaching Feedback
+            </span>
+            <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-xs">
+              <div className="bg-slate-50/80 px-5 py-3 border-b border-slate-200/60 flex items-center justify-between">
+                <span className="text-xs font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-mt-orange" />
+                  <span>AI Coaching Diagnostics &amp; Prescriptions</span>
+                </span>
+                <span className="text-[10px] font-mono font-bold bg-orange-50 text-mt-orange px-2 py-0.5 rounded border border-orange-200">
+                  3 SECTIONS ANALYZED
+                </span>
+              </div>
+              <div className="p-5 overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200/80 text-[10px] font-mono font-bold uppercase text-slate-400 tracking-wider">
+                      <th className="pb-3 px-3 w-1/4">Section</th>
+                      <th className="pb-3 px-3 w-3/4">Feedback &amp; Actionable Coaching</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    <tr className="hover:bg-slate-50/40 transition-colors">
+                      <td className="py-4 px-3 font-bold text-slate-800 align-top">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" />
+                          <span className="text-sm">Introduction</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-3 text-slate-600 leading-relaxed align-top font-medium space-y-2">
+                        <p>
+                          You recovered well from the name mistake and asked for permission to proceed, showing respect for the buyer’s time. Still, your introduction lacked a sharp, researched insight about {persona.company}, which is crucial for this scenario. Next time, open directly with a concise, company-specific observation—such as referencing {persona.company}&apos;s rapid hiring and shifting product strategy—before stating your intent. This demonstrates preparation and instantly signals relevance, helping you earn trust quickly and differentiate yourself from generic outreach.
+                        </p>
+                        <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3 text-indigo-950 font-medium italic">
+                          <strong>Begin with:</strong> &ldquo;I noticed {persona.company}&apos;s recent expansion and evolving product launches, which often creates enablement challenges. I have a hypothesis on how this affects your team and would love to validate if this fits. May I share a quick perspective?&rdquo;
+                        </div>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-50/40 transition-colors">
+                      <td className="py-4 px-3 font-bold text-slate-800 align-top">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                          <span className="text-sm">Objection Handling</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-3 text-slate-600 leading-relaxed align-top font-medium">
+                        You handled objections respectfully, citing observed changes at {persona.company} and acknowledging your outside view. Your openness about gaps in knowledge established transparency, and you navigated challenges around relevance by referencing industry patterns and {persona.name.split(" ")[0]}’s hiring pace. However, you missed chances to concisely communicate how Mindtickle uniquely addresses these exact challenges, instead leaning on a meeting request. For stronger objection handling, link {persona.name.split(" ")[0]}’s specific pain points to one or two immediate Mindtickle differentiators—such as proving rep readiness through quantified data, not just completion rates. This grounds your request in relevant outcomes, making your meeting offer more compelling and reducing perceived risk for the prospect.
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-50/40 transition-colors">
+                      <td className="py-4 px-3 font-bold text-slate-800 align-top">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                          <span className="text-sm">Conclusion</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-3 text-slate-600 leading-relaxed align-top font-medium">
+                        You effectively wrapped the conversation by agreeing to send a concrete outline and focusing on exactly what {persona.name.split(" ")[0]} specified: proving rep readiness and ramp impact. This responsiveness increased engagement and solidified next steps. However, you initially pushed for a 30-minute discovery without clearly justifying it; the buyer limited the time and qualified your agenda, highlighting the importance of specificity. For future closings, summarize your understanding of the buyer’s need, articulate the unique demonstration you’ll provide, and propose a precise, value-driven next conversation duration. End with gratitude for their time and an explicit summary of what the follow-up delivers for them.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 4.5: Mindtickle 2-Way Roleplay Provisioning (RevUp Admin API) */}
+          <div className="space-y-3 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase text-indigo-600 font-mono tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                Step 4.5: Mindtickle 2-Way Roleplay Provisioning (RevUp Admin API)
+              </span>
+              <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold border border-indigo-100">
+                Bulk / Orchestrated 2-Way Video Pitch Coaching
+              </span>
+            </div>
+
+            <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white p-5 sm:p-6 rounded-2xl shadow-xl border border-indigo-500/20 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+              
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                <div className="space-y-2 max-w-xl">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-indigo-500/20 border border-indigo-400/30 text-[11px] font-bold text-indigo-300 font-mono tracking-wider uppercase">
+                      ElevateOS™ Orchestrator
+                    </span>
+                    <span className="text-xs text-slate-400 font-medium">
+                      Program ID: <strong className="text-white">1009876</strong>
+                    </span>
+                  </div>
+                  <h4 className="text-lg sm:text-xl font-black tracking-tight text-white flex items-center gap-2">
+                    Create The Next Roleplay
+                  </h4>
+                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal">
+                    Instantly provision the next sequential 2-way interactive roleplay (<span className="text-indigo-300 font-semibold">{curDeal === "saas" ? "Northwind Cloud" : "Meridian Therapeutics"} · {dealData.stages[Math.min(curStageIdx + 1, dealData.stages.length - 1)].name}</span>) on Mindtickle RevUp. Automatically configures avatar instructions, AI termination criteria, 7-minute seat limits, and 3-tier evaluation parameters.
+                  </p>
+                </div>
+
+                <div className="shrink-0 flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    disabled={isCreatingRoleplay}
+                    onClick={handleCreateRoleplay}
+                    className="px-5 py-3.5 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-bold rounded-xl text-xs sm:text-sm shadow-lg shadow-indigo-600/30 hover:shadow-indigo-500/50 transition-all transform active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed border border-indigo-400/30"
+                  >
+                    {isCreatingRoleplay ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                        <span>Provisioning Module...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 shrink-0 fill-current" />
+                        <span>Create The Next Roleplay</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Created Roleplay Result Card */}
+              {createdRoleplayData && (
+                <div className="mt-6 pt-5 border-t border-slate-800/80 space-y-4 animate-in fade-in slide-in-from-top-3 duration-300">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/70 border border-indigo-500/30 p-4 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-white text-sm">
+                            {createdRoleplayData.roleplayName}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-bold border border-emerald-500/30">
+                            {createdRoleplayData.status}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
+                            Mode: {createdRoleplayData.mode}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-400 mt-1 flex items-center gap-3 font-mono">
+                          <span>gameId: <strong className="text-indigo-300">{createdRoleplayData.gameId}</strong></span>
+                          <span>•</span>
+                          <span>seriesId: <strong className="text-indigo-300">{createdRoleplayData.seriesId}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 sm:self-center shrink-0">
+                      <a
+                        href={createdRoleplayData.learnerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3.5 py-2 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"
+                      >
+                        <span>Launch Learner UI</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Step 5: Completion Control */}
+          <div className="space-y-3 pt-2 border-t border-slate-100">
+            <span className="text-[10px] font-bold uppercase text-slate-400 font-mono tracking-wider block">
+              Step 5: Record Progress &amp; Advance
+            </span>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 border border-slate-200/80 p-4 rounded-2xl">
+              <div className="text-xs text-slate-600 font-medium flex items-center gap-2.5">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${curScores[curStageIdx] > 0 ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-slate-800">
+                    {curScores[curStageIdx] > 0 ? "Module Completed & Verified" : "Ready to Advance?"}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    {curScores[curStageIdx] > 0 
+                      ? `Your recorded proficiency score is ${curScores[curStageIdx]}%.` 
+                      : "Once you finish practicing in the interactive module above, record your score to advance."}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                {curStageIdx > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurStageIdx(prev => prev - 1);
+                    }}
+                    className="px-3.5 py-2 border border-slate-200 text-slate-600 hover:bg-slate-100 font-bold rounded-xl text-xs cursor-pointer transition-colors"
+                  >
+                    Previous Stage
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextScore = curScores[curStageIdx] || (Math.floor(Math.random() * (94 - 82 + 1)) + 82);
+                    const newScores = [...curScores];
+                    newScores[curStageIdx] = nextScore;
+                    if (curDeal === "saas") {
+                      setSaasScores(newScores);
+                      try { localStorage.setItem("mt_saas_scores", JSON.stringify(newScores)); } catch {}
+                    } else {
+                      setPharmaScores(newScores);
+                      try { localStorage.setItem("mt_pharma_scores", JSON.stringify(newScores)); } catch {}
+                    }
+                    window.dispatchEvent(new Event("mt_scores_updated"));
+                    window.dispatchEvent(new Event("mt_telemetry_updated"));
+
+                    if (curStageIdx < dealData.stages.length - 1) {
+                      nextStage();
+                    }
+                  }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-sm transition-all shrink-0"
+                >
+                  <span>{curScores[curStageIdx] > 0 ? (curStageIdx < dealData.stages.length - 1 ? "Next Stage" : "Module Completed ✓") : "Mark Complete & Proceed"}</span>
+                  {curStageIdx < dealData.stages.length - 1 && <ArrowRight className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
         </div>
 
       </div>
 
       {/* Deal Probability Meter Card */}
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl">
         <div className="bg-mt-navy text-white rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-xl">
           <div className="absolute top-0 right-0 w-64 h-64 bg-mt-indigo/10 rounded-full blur-3xl pointer-events-none" />
           
@@ -793,7 +1093,7 @@ export default function TestAndOnboard({ userName }: TestAndOnboardProps) {
       </div>
 
       {/* Phase 2: Essentials Section */}
-      <div className="max-w-5xl mx-auto border-t border-slate-200 pt-8 mt-12 space-y-6">
+      <div className="max-w-5xl border-t border-slate-200 pt-8 mt-12 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
             <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase font-mono block">
