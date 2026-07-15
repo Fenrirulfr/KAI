@@ -52,7 +52,7 @@ async function startServer() {
         active_provider: hasOpenAI ? "openai" : (hasGemini ? "gemini" : "mock"),
         openai_configured: hasOpenAI,
         gemini_configured: hasGemini,
-        model: hasOpenAI ? (process.env.OPENAI_MODEL || "gpt-4o-mini") : "gemini-2.5-flash"
+        model: hasOpenAI ? ((process.env.OPENAI_MODEL && !process.env.OPENAI_MODEL.startsWith("sk-")) ? process.env.OPENAI_MODEL : "gpt-4o-mini") : "gemini-2.5-flash"
       }
     });
   });
@@ -1254,7 +1254,8 @@ Guidelines:
 
   async function runOpenAIPrompt(systemInstruction: string, prompt: string): Promise<string> {
     const openai = getOpenAIClient();
-    const model = process.env.OPENAI_MODEL || process.env.MODEL_NAME || "gpt-4o";
+    const rawModel = (process.env.OPENAI_MODEL && !process.env.OPENAI_MODEL.startsWith("sk-")) ? process.env.OPENAI_MODEL : (process.env.MODEL_NAME && !process.env.MODEL_NAME.startsWith("sk-")) ? process.env.MODEL_NAME : "gpt-4o";
+    const model = rawModel === "gpt4-0" ? "gpt-4o" : rawModel;
     if (openai) {
       try {
         const response = await openai.chat.completions.create({
@@ -1286,7 +1287,8 @@ Guidelines:
 
   async function runOpenAIStructuredPrompt(prompt: string): Promise<any> {
     const openai = getOpenAIClient();
-    const model = process.env.OPENAI_MODEL || process.env.MODEL_NAME || "gpt-4o";
+    const rawModel = (process.env.OPENAI_MODEL && !process.env.OPENAI_MODEL.startsWith("sk-")) ? process.env.OPENAI_MODEL : (process.env.MODEL_NAME && !process.env.MODEL_NAME.startsWith("sk-")) ? process.env.MODEL_NAME : "gpt-4o";
+    const model = rawModel === "gpt4-0" ? "gpt-4o" : rawModel;
     if (openai) {
       try {
         const response = await openai.chat.completions.create({
@@ -2502,7 +2504,7 @@ Provide structured feedback in JSON format with exactly these fields:
   app.post(["/api/openai/account-buddy", "/api/account-buddy", "/api/ai/account-buddy", "/api/v1/account-buddy"], async (req, res) => {
     try {
       const { action, accountName, vertical, stage, risk, intel, userResponse, chatMessage, chatHistory } = req.body;
-      const modelName = process.env.OPENAI_MODEL || process.env.MODEL_NAME || "gpt-4o";
+      const modelName = (process.env.OPENAI_MODEL && !process.env.OPENAI_MODEL.startsWith("sk-")) ? process.env.OPENAI_MODEL : (process.env.MODEL_NAME && !process.env.MODEL_NAME.startsWith("sk-")) ? process.env.MODEL_NAME : "gpt-4o";
       const openai = getOpenAIClient();
 
       if (action === "graph") {
