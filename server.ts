@@ -362,14 +362,15 @@ async function startServer() {
         if (formatted.length === 0) {
           formatted.push({ role: "user", content: "Hello" });
         }
+        const model = (process.env.OPENAI_MODEL && !process.env.OPENAI_MODEL.startsWith("sk-")) ? process.env.OPENAI_MODEL : (process.env.MODEL_NAME && !process.env.MODEL_NAME.startsWith("sk-")) ? process.env.MODEL_NAME : "gpt-4o";
         const response = await openai.chat.completions.create({
-          model: process.env.OPENAI_MODEL || process.env.MODEL_NAME || "gpt-4o",
+          model: model,
           messages: formatted,
           temperature: options.temperature ?? 0.7,
         });
         const text = response.choices[0]?.message?.content || "";
         if (text) {
-          console.log("[OpenAI Engine] Completion executed via OpenAI API (" + (process.env.OPENAI_MODEL || process.env.MODEL_NAME || "gpt-4o") + ")");
+          console.log("[OpenAI Engine] Completion executed via OpenAI API (" + model + ")");
           return text;
         }
       } catch (openAiError: any) {
@@ -430,14 +431,15 @@ async function startServer() {
         }
         formatted.push({ role: "user", content: options.prompt });
 
+        const model = (process.env.OPENAI_MODEL && !process.env.OPENAI_MODEL.startsWith("sk-")) ? process.env.OPENAI_MODEL : (process.env.MODEL_NAME && !process.env.MODEL_NAME.startsWith("sk-")) ? process.env.MODEL_NAME : "gpt-4o";
         const response = await openai.chat.completions.create({
-          model: process.env.OPENAI_MODEL || process.env.MODEL_NAME || "gpt-4o",
+          model: model,
           messages: formatted,
           temperature: options.temperature ?? 0.2,
           response_format: { type: "json_object" }
         });
         const text = response.choices[0]?.message?.content || "{}";
-        console.log("[OpenAI Engine] Structured completion executed via OpenAI API (" + (process.env.OPENAI_MODEL || process.env.MODEL_NAME || "gpt-4o") + ")");
+        console.log("[OpenAI Engine] Structured completion executed via OpenAI API (" + model + ")");
         return JSON.parse(text);
       } catch (openAiError: any) {
         console.error("OpenAI structured API error, falling back to Gemini:", openAiError?.message || openAiError);
