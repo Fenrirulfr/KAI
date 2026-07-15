@@ -2419,7 +2419,7 @@ Guidelines:
   app.post(["/api/openai/pitch-coach", "/api/gemini/pitch-coach", "/api/ai/pitch-coach", "/api/coaching/pitch-coach", "/api/v1/pitch-coach"], async (req, res) => {
     try {
       const { pitch, personaName, personaTitle } = req.body;
-      const modelName = process.env.OPENAI_MODEL || process.env.MODEL_NAME || "gpt-4o";
+      const model = (process.env.OPENAI_MODEL && !process.env.OPENAI_MODEL.startsWith("sk-")) ? process.env.OPENAI_MODEL : (process.env.MODEL_NAME && !process.env.MODEL_NAME.startsWith("sk-")) ? process.env.MODEL_NAME : "gpt-4o";
 
       const systemInstruction = "You are an expert ElevateOS™ Sales Presentation Coach and AI Reviewer at Mindtickle. You evaluate sales pitches and provide objective scoring and feedback in valid JSON format.";
       const prompt = `Analyze this sales pitch by a Mindtickle Account Executive pitching to ${personaName} (${personaTitle}).
@@ -2436,7 +2436,7 @@ Provide structured feedback in JSON format with exactly these fields:
       if (openai) {
         try {
           const response = await openai.chat.completions.create({
-            model: modelName,
+            model: model,
             messages: [
               { role: "system", content: systemInstruction },
               { role: "user", content: prompt }
@@ -2571,8 +2571,9 @@ Provide structured evaluation in JSON format with exactly these fields:
 
         if (openai) {
           try {
+            const model = (process.env.OPENAI_MODEL && !process.env.OPENAI_MODEL.startsWith("sk-")) ? process.env.OPENAI_MODEL : (process.env.MODEL_NAME && !process.env.MODEL_NAME.startsWith("sk-")) ? process.env.MODEL_NAME : "gpt-4o";
             const response = await openai.chat.completions.create({
-              model: modelName,
+              model: model,
               messages: [
                 { role: "system", content: systemInstruction },
                 { role: "user", content: prompt }
